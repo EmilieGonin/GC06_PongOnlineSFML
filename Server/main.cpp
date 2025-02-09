@@ -1,75 +1,59 @@
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#include <SFML/Network.hpp>
 #include <iostream>
+#include <unordered_map>
+#include <optional>
 
-#pragma comment(lib, "ws2_32.lib")
-
-#define BUFFER_SIZE 1024
-
-bool initWinsock() {
-    WSADATA wsaData;
-    return WSAStartup(MAKEWORD(2, 2), &wsaData) == 0;
+// Ajout du hash pour `sf::IpAddress`
+namespace std {
+    template<>
+    struct hash<sf::IpAddress> {
+        std::size_t operator()(const sf::IpAddress& ip) const {
+            return hash<std::string>()(ip.toString());
+        }
+    };
 }
 
-SOCKET createUDPSocket() {
-    return socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-}
+#define SERVER_PORT 54000
 
-bool configureServer(SOCKET& serverSocket, unsigned short port) {
-    sockaddr_in serverAddr;
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(port);
-    serverAddr.sin_addr.s_addr = INADDR_ANY;  // Accepte toutes les connexions
-
-    return bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) != SOCKET_ERROR;
-}
-
-void runServer(SOCKET serverSocket) {
-    sockaddr_in clientAddr;
-    int clientAddrSize = sizeof(clientAddr);
-    char buffer[BUFFER_SIZE];
+int main() {
+    sf::UdpSocket socket;
+    if (socket.bind(SERVER_PORT) != sf::Socket::Status::Done) {
+        std::cerr << "Erreur : Impossible de lier la socket au port " << SERVER_PORT << std::endl;
+        return 1;
+    }
 
     std::cout << "Serveur en attente de messages..." << std::endl;
 
+    std::unordered_map<sf::IpAddress, unsigned short> clients;
+
     while (true) {
-        int bytesReceived = recvfrom(serverSocket, buffer, BUFFER_SIZE, 0, (sockaddr*)&clientAddr, &clientAddrSize);
-        if (bytesReceived == SOCKET_ERROR) {
-            std::cerr << "Erreur recvfrom: " << WSAGetLastError() << std::endl;
-            continue;
+        char buffer[1024];
+        std::size_t received;
+        std::optional<sf::IpAddress> senderIP;
+        unsigned short senderPort;
+
+        if (socket.receive(buffer, sizeof(buffer), received, senderIP, senderPort) == sf::Socket::Status::Done) {
+            buffer[received] = '\0';
+            std::string data(buffer);
+
+            if (senderIP) { // Vérifier que l'adresse est valide
+                std::cout << "Reçu de " << *senderIP << " : " << data << std::endl;
+
+                // Enregistrer le client
+                if (clients.find(*senderIP) == clients.end()) {
+                    clients[*senderIP] = senderPort;
+                    std::cout << "Nouveau joueur connecté : " << *senderIP << ":" << senderPort << std::endl;
+                }
+
+                // Diffuser la position aux autres joueurs
+                for (const auto& client : clients) {
+                    if (client.first != *senderIP) {
+                        socket.send(data.c_str(), data.size(), client.first, client.second);
+                    }
+                }
+            }
         }
-
-        buffer[bytesReceived] = '\0';  // Assurer que la chaîne est bien terminée
-        std::cout << "Message reçu: " << buffer << std::endl;
-
-        // Répondre au client
-        std::string response = "Message bien reçu !";
-        sendto(serverSocket, response.c_str(), response.size(), 0, (sockaddr*)&clientAddr, clientAddrSize);
-    }
-}
-
-int main() {
-    if (!initWinsock()) {
-        std::cerr << "Échec de l'initialisation de Winsock." << std::endl;
-        return 1;
     }
 
-    SOCKET serverSocket = createUDPSocket();
-    if (serverSocket == INVALID_SOCKET) {
-        std::cerr << "Erreur de création de socket." << std::endl;
-        WSACleanup();
-        return 1;
-    }
-
-    if (!configureServer(serverSocket, 54000)) {
-        std::cerr << "Erreur de configuration du serveur." << std::endl;
-        closesocket(serverSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    runServer(serverSocket);
-
-    closesocket(serverSocket);
-    WSACleanup();
     return 0;
 }
