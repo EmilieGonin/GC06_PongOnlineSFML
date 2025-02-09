@@ -1,7 +1,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
-#include <windows.h>  
+#include <windows.h>
+#include <string>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -12,6 +13,16 @@ std::string player1Inputs = "";
 std::string player2Inputs = "";
 bool player1Updated = false;
 bool player2Updated = false;
+
+// Position et vitesse de la balle
+float ballX = 400.f, ballY = 300.f;
+float ballSpeedX = 5.f, ballSpeedY = 5.f;
+
+// Positions des joueurs
+float player1Y = 250.f;
+float player2Y = 250.f;
+const float playerSpeed = 10.f;
+const float windowHeight = 600.f;
 
 int main() {
     WSADATA wsaData;
@@ -70,37 +81,58 @@ int main() {
                     player2Updated = true;
                 }
 
-                std::string combinedInputs = "";
+                // Mise à jour des positions des joueurs
+                if (player1Inputs == "Z" && player1Y > 0) player1Y -= playerSpeed;
+                if (player1Inputs == "S" && player1Y < windowHeight - 100) player1Y += playerSpeed;
+                if (player2Inputs == "P" && player2Y > 0) player2Y -= playerSpeed;
+                if (player2Inputs == "M" && player2Y < windowHeight - 100) player2Y += playerSpeed;
 
-                // Si les deux joueurs envoient un input au même moment, on les envoie ensemble
-                if (player1Updated && player2Updated) {
-                    combinedInputs = player1Inputs + "," + player2Inputs;
-                    player1Updated = false;
-                    player2Updated = false;
-                }
-                // Si seul Player 1 a envoyé un input
-                else if (player1Updated) {
-                    combinedInputs = player1Inputs + ",";
-                    player1Updated = false;
-                }
-                // Si seul Player 2 a envoyé un input
-                else if (player2Updated) {
-                    combinedInputs = "," + player2Inputs;
-                    player2Updated = false;
+                // Mise à jour de la balle
+                ballX += ballSpeedX;
+                ballY += ballSpeedY;
+
+                // Rebond sur le haut et le bas
+                if (ballY <= 0 || ballY >= windowHeight - 10) {
+                    ballSpeedY *= -1;
                 }
 
-                if (!combinedInputs.empty() && combinedInputs != ",") {
-                    std::cout << "Envoi aux clients : " << combinedInputs << std::endl;
-                    if (player1Port != 0) {
-                        sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
-                    }
-                    if (player2Port != 0) {
-                        sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
-                    }
+                // Vérification des collisions avec les joueurs
+                if (ballX <= 60 && ballY >= player1Y && ballY <= player1Y + 100) {
+                    ballSpeedX *= -1;
+                    ballX = 60; // Évite que la balle se colle à la raquette
+                }
+                if (ballX >= 730 && ballY >= player2Y && ballY <= player2Y + 100) {
+                    ballSpeedX *= -1;
+                    ballX = 730;
+                }
+
+                // Si la balle sort, on la remet au centre
+                if (ballX < 0 || ballX > 800) {
+                    ballX = 400;
+                    ballY = 300;
+                    ballSpeedX *= -1;
+                }
+
+                // Création du message de mise à jour
+                std::string updateMessage = std::to_string(player1Y) + "," +
+                    std::to_string(player2Y) + "," +
+                    std::to_string(ballX) + "," +
+                    std::to_string(ballY);
+
+                std::cout << "Envoi aux clients : " << updateMessage << std::endl;
+
+                // Envoi aux clients
+                if (player1Port != 0) {
+                    sendto(serverSocket, updateMessage.c_str(), updateMessage.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+                }
+                if (player2Port != 0) {
+                    sendto(serverSocket, updateMessage.c_str(), updateMessage.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
                 }
 
                 player1Inputs = "";
                 player2Inputs = "";
+                player1Updated = false;
+                player2Updated = false;
             }
         }
     }

@@ -1,23 +1,16 @@
-#pragma once
+#ifndef PADDLE_H
+#define PADDLE_H
 
-#include "Sprite.h"
+#include <SFML/Graphics.hpp>
 
-class Paddle
-{
+class Paddle {
 public:
-    Paddle(float startX, float startY);
-    void Update(bool moveUp, bool moveDown, float deltaTime);
-    void Draw(sf::RenderTarget& target) const;
+    sf::RectangleShape shape;
 
-    float GetX() const;
-    float GetY() const;
-    sf::Vector2f GetSize() const;
-
-private:
-    sf::Vector2f position;
-    float width;
-    float height;
-    float speed = 200.0f;
-
-    Sprite spritePaddle;
+    Paddle(float x, float y);
+    void MoveUp(float deltaTime);
+    void MoveDown(float deltaTime, float windowHeight);
+    void Draw(sf::RenderWindow& window);
 };
+
+#endif

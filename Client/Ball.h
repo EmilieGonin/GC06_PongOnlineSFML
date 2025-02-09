@@ -1,25 +1,17 @@
-#pragma once
+#ifndef BALL_H
+#define BALL_H
 
-#include "Sprite.h"
 #include <SFML/Graphics.hpp>
 
 class Ball {
 public:
-    Ball(float startX, float startY);
+    sf::CircleShape shape;
+    sf::Vector2f velocity;
+
+    Ball(float x, float y);
     void Update(float deltaTime);
-    void Draw(sf::RenderTarget& target) const;
-
-    void InvertDirectionX();
-    void InvertDirectionY();
-
-    float GetX() const;
-    float GetY() const;
-    sf::Vector2f GetSize() const;
-
-private:
-    sf::Vector2f position;
-    sf::Vector2f velocity = { 200.f, 200.f };
-    float radius;
-
-    Sprite spriteBall;
+    void Draw(sf::RenderWindow& window);
+    void ResetPosition(float x, float y);
 };
+
+#endif

@@ -5,7 +5,8 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <optional>
-#include <sstream>
+#include "Ball.h"
+#include "Paddle.h"
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -14,15 +15,11 @@
 #define BUFFER_SIZE 1024
 
 int main() {
-    sf::RenderWindow window(sf::VideoMode({ 800, 600 }), "Client UDP - 2 Joueurs");
+    sf::RenderWindow window(sf::VideoMode({ 800, 600 }), "Pong Client");
 
-    sf::RectangleShape player1(sf::Vector2f(50.f, 50.f));
-    player1.setFillColor(sf::Color::Green);
-    player1.setPosition(sf::Vector2f(200.f, 300.f));
-
-    sf::RectangleShape player2(sf::Vector2f(50.f, 50.f));
-    player2.setFillColor(sf::Color::Red);
-    player2.setPosition(sf::Vector2f(400.f, 300.f));
+    Paddle player1(50.f, 250.f);
+    Paddle player2(740.f, 250.f);
+    Ball ball(400.f, 300.f);
 
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -40,6 +37,7 @@ int main() {
     role = role.substr(0, 2);
 
     if (role == "full") {
+        std::cout << "Serveur plein. Fermeture du client." << std::endl;
         return 0;
     }
 
@@ -52,18 +50,17 @@ int main() {
             }
         }
 
-        std::string input = "";
+        std::string input = "0";
         if (isPlayer1) {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input += "Z";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input += "S";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
         }
         else {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input += "P";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input += "M";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input = "P";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input = "M";
         }
 
-        if (!input.empty()) {
-            std::cout << "Envoi au serveur : " << input << std::endl;
+        if (input != "0") {
             sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
         }
 
@@ -83,27 +80,20 @@ int main() {
             if (bytesReceived > 0) {
                 buffer[bytesReceived] = '\0';
                 std::string data(buffer);
-                std::cout << "Commande reçue du serveur : " << data << std::endl;
 
-                std::stringstream ss(data);
-                std::string p1Input, p2Input;
-                std::getline(ss, p1Input, ',');
-                std::getline(ss, p2Input, ',');
+                float p1Y, p2Y, ballX, ballY;
+                sscanf_s(data.c_str(), "%f,%f,%f,%f", &p1Y, &p2Y, &ballX, &ballY);
 
-                for (char c : p1Input) {
-                    if (c == 'Z') player1.move(sf::Vector2f(0.f, -5.f));
-                    if (c == 'S') player1.move(sf::Vector2f(0.f, 5.f));
-                }
-                for (char c : p2Input) {
-                    if (c == 'P') player2.move(sf::Vector2f(0.f, -5.f));
-                    if (c == 'M') player2.move(sf::Vector2f(0.f, 5.f));
-                }
+                player1.shape.setPosition({ player1.shape.getPosition().x, p1Y });
+                player2.shape.setPosition({ player2.shape.getPosition().x, p2Y });
+                ball.shape.setPosition({ ballX, ballY });
             }
         }
 
         window.clear();
-        window.draw(player1);
-        window.draw(player2);
+        window.draw(player1.shape);
+        window.draw(player2.shape);
+        window.draw(ball.shape);
         window.display();
     }
 

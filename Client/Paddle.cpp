@@ -1,62 +1,23 @@
 #include "Paddle.h"
-#include <iostream>
 
-Paddle::Paddle(float startX, float startY)
-{
-    position.x = startX;
-    position.y = startY;
-
-    if (!spritePaddle.LoadImage("paddle.png"))
-    {
-        std::cerr << "Erreur de chargement de paddle.png" << std::endl;
-    }
-
-    spritePaddle.SetSize(20, 100);
-    spritePaddle.SetPosition(startX, startY);
-
-    width = spritePaddle.GetSize().first;
-    height = spritePaddle.GetSize().second;
+Paddle::Paddle(float x, float y) {
+    shape.setSize(sf::Vector2f(10.f, 100.f));
+    shape.setFillColor(sf::Color::White);
+    shape.setPosition({ x, y });
 }
 
-void Paddle::Update(bool moveUp, bool moveDown, float deltaTime)
-{
-    if (moveUp)
-    {
-        position.y -= speed * deltaTime;
+void Paddle::MoveUp(float deltaTime) {
+    if (shape.getPosition().y > 0) {
+        shape.move({ 0, -200.f * deltaTime });
     }
-    if (moveDown)
-    {
-        position.y += speed * deltaTime;
-    }
-
-    if (position.y < 0)
-    {
-        position.y = 0;
-    }
-    if (position.y + height > 600)
-    {
-        position.y = 600 - height;
-    }
-
-    spritePaddle.SetPosition(position.x, position.y);
 }
 
-void Paddle::Draw(sf::RenderTarget& target) const
-{
-    spritePaddle.Draw(target);
+void Paddle::MoveDown(float deltaTime, float windowHeight) {
+    if (shape.getPosition().y + shape.getSize().y < windowHeight) {
+        shape.move({ 0, 200.f * deltaTime });
+    }
 }
 
-float Paddle::GetX() const
-{
-    return position.x;
-}
-
-float Paddle::GetY() const
-{
-    return position.y;
-}
-
-sf::Vector2f Paddle::GetSize() const
-{
-    return { width, height };
+void Paddle::Draw(sf::RenderWindow& window) {
+    window.draw(shape);
 }
