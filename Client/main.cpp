@@ -2,7 +2,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
-#include <sstream>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -22,22 +21,16 @@ int main() {
     otherPlayer.setPosition(sf::Vector2f(400.f, 300.f));
 
     WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "Erreur Winsock !" << std::endl;
-        return 1;
-    }
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
 
     SOCKET clientSocket = socket(AF_INET, SOCK_DGRAM, 0);
-    if (clientSocket == INVALID_SOCKET) {
-        std::cerr << "Erreur : Impossible de créer la socket !" << std::endl;
-        WSACleanup();
-        return 1;
-    }
-
-    sockaddr_in serverAddr;
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(SERVER_PORT);
+    sockaddr_in serverAddr = { AF_INET, htons(SERVER_PORT) };
     inet_pton(AF_INET, SERVER_IP, &serverAddr.sin_addr);
+
+    std::cout << "Connexion au serveur..." << std::endl;
+    sendto(clientSocket, "connect", 7, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+
+    bool isPlayer1 = false, isGameStarted = false;
 
     while (window.isOpen()) {
         while (std::optional<sf::Event> event = window.pollEvent()) {
@@ -45,18 +38,9 @@ int main() {
                 window.close();
         }
 
-        sf::Vector2f movement(0.f, 0.f);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) movement.x -= 5.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) movement.x += 5.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) movement.y -= 5.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) movement.y += 5.f;
+        std::cout << "Attente d'un message du serveur..." << std::endl;
 
-        player.move(movement);
-
-        std::string positionData = std::to_string((int)player.getPosition().x) + "," +
-            std::to_string((int)player.getPosition().y);
-        sendto(clientSocket, positionData.c_str(), positionData.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
-
+        // Réception des entrées du serveur
         char buffer[BUFFER_SIZE];
         sockaddr_in senderAddr;
         int senderLen = sizeof(senderAddr);
@@ -64,12 +48,29 @@ int main() {
 
         if (bytesReceived > 0) {
             buffer[bytesReceived] = '\0';
-            float x, y;
-            char comma;
-            std::stringstream ss(buffer);
-            if (ss >> x >> comma >> y) {
-                otherPlayer.setPosition(sf::Vector2f(x, y));
-            }
+            std::cout << "Commande reçue du serveur : " << buffer << std::endl;
+
+            if (strcmp(buffer, "Z") == 0 || strcmp(buffer, "UP") == 0)
+                player.move(sf::Vector2f(0.f, -5.f));
+
+            if (strcmp(buffer, "S") == 0 || strcmp(buffer, "DOWN") == 0)
+                player.move(sf::Vector2f(0.f, 5.f));
+        }
+
+        // Gestion des entrées spécifiques à chaque joueur
+        std::string input;
+        if (isPlayer1) {
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
+        }
+        else {
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)) input = "UP";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down)) input = "DOWN";
+        }
+
+        if (!input.empty()) {
+            std::cout << "Envoi au serveur : " << input << std::endl;
+            sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
         }
 
         window.clear();
