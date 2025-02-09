@@ -31,24 +31,19 @@ int main() {
     sockaddr_in serverAddr = { AF_INET, htons(SERVER_PORT) };
     inet_pton(AF_INET, SERVER_IP, &serverAddr.sin_addr);
 
-    std::cout << "Connexion au serveur..." << std::endl;
     sendto(clientSocket, "connect", 7, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
 
     char roleBuffer[BUFFER_SIZE];
     int serverLen = sizeof(serverAddr);
     recvfrom(clientSocket, roleBuffer, BUFFER_SIZE, 0, (sockaddr*)&serverAddr, &serverLen);
     std::string role(roleBuffer);
-
     role = role.substr(0, 2);
-    std::cout << "Réponse du serveur : " << role << std::endl;
 
     if (role == "full") {
-        std::cout << "Partie déjà pleine !" << std::endl;
         return 0;
     }
 
     bool isPlayer1 = (role == "J1");
-    std::cout << "Valeur de isPlayer1 : " << isPlayer1 << std::endl;
 
     while (window.isOpen()) {
         while (std::optional<sf::Event> event = window.pollEvent()) {
@@ -63,12 +58,11 @@ int main() {
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
         }
         else {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)) input = "UP";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down)) input = "DOWN";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input = "P";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input = "M";
         }
 
         if (!input.empty()) {
-            std::cout << "Envoi au serveur : " << input << std::endl;
             sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
         }
 
@@ -94,12 +88,10 @@ int main() {
                 std::getline(ss, p1Input, ',');
                 std::getline(ss, p2Input, ',');
 
-                std::cout << "Commande reçue : Player 1 -> " << p1Input << ", Player 2 -> " << p2Input << std::endl;
-
                 if (p1Input == "Z") player1.move(sf::Vector2f(0.f, -5.f));
                 if (p1Input == "S") player1.move(sf::Vector2f(0.f, 5.f));
-                if (p2Input == "UP") player2.move(sf::Vector2f(0.f, -5.f));
-                if (p2Input == "DOWN") player2.move(sf::Vector2f(0.f, 5.f));
+                if (p2Input == "P") player2.move(sf::Vector2f(0.f, -5.f));
+                if (p2Input == "M") player2.move(sf::Vector2f(0.f, 5.f));
             }
         }
 
