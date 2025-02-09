@@ -60,6 +60,7 @@ int main() {
     }
 
     bool isPlayer1 = (role == "J1");
+    bool gameOver = false;
 
     while (window.isOpen()) {
         while (std::optional<sf::Event> event = window.pollEvent()) {
@@ -68,51 +69,71 @@ int main() {
             }
         }
 
-        std::string input;
-        if (isPlayer1) {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
-        }
-        else {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input = "P";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input = "M";
-        }
+        if (!gameOver) {
+            std::string input;
+            if (isPlayer1) {
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
+            }
+            else {
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input = "P";
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input = "M";
+            }
 
-        if (!input.empty()) {
-            sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
-        }
+            if (!input.empty()) {
+                sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+            }
 
-        fd_set readSet;
-        FD_ZERO(&readSet);
-        FD_SET(clientSocket, &readSet);
+            fd_set readSet;
+            FD_ZERO(&readSet);
+            FD_SET(clientSocket, &readSet);
 
-        struct timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 50000;
+            struct timeval timeout;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 50000;
 
-        int activity = select(clientSocket + 1, &readSet, NULL, NULL, &timeout);
-        if (activity > 0 && FD_ISSET(clientSocket, &readSet)) {
-            char buffer[BUFFER_SIZE];
-            int bytesReceived = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, NULL, NULL);
+            int activity = select(clientSocket + 1, &readSet, NULL, NULL, &timeout);
+            if (activity > 0 && FD_ISSET(clientSocket, &readSet)) {
+                char buffer[BUFFER_SIZE];
+                int bytesReceived = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, NULL, NULL);
 
-            if (bytesReceived > 0) {
-                buffer[bytesReceived] = '\0';
-                std::string data(buffer);
+                if (bytesReceived > 0) {
+                    buffer[bytesReceived] = '\0';
+                    std::string data(buffer);
 
-                std::stringstream ss(data);
-                std::string p1Y, p2Y, ballX, ballY, s1, s2;
-                std::getline(ss, p1Y, ',');
-                std::getline(ss, p2Y, ',');
-                std::getline(ss, ballX, ',');
-                std::getline(ss, ballY, ',');
-                std::getline(ss, s1, ',');
-                std::getline(ss, s2, ',');
+                    if (data == "win1" || data == "win2") {
+                        if ((data == "win1" && isPlayer1) || (data == "win2" && !isPlayer1)) {
+                            std::cout << "Vous avez gagné !" << std::endl;
+                            scoreText.setString("GAGNÉ !");
+                        }
+                        else {
+                            std::cout << "Vous avez perdu..." << std::endl;
+                            scoreText.setString("PERDU !");
+                        }
+                        gameOver = true;
+                    }
+                    else {
+                        std::stringstream ss(data);
+                        std::string p1Y, p2Y, ballX, ballY, s1, s2;
+                        std::getline(ss, p1Y, ',');
+                        std::getline(ss, p2Y, ',');
+                        std::getline(ss, ballX, ',');
+                        std::getline(ss, ballY, ',');
+                        std::getline(ss, s1, ',');
+                        std::getline(ss, s2, ',');
 
-                paddle1.setPosition({ 50.f, std::stof(p1Y) });
-                paddle2.setPosition({ 740.f, std::stof(p2Y) });
-                ball.setPosition({ std::stof(ballX), std::stof(ballY) });
+                        try {
+                            if (!p1Y.empty()) paddle1.setPosition({ 50.f, std::stof(p1Y) });
+                            if (!p2Y.empty()) paddle2.setPosition({ 740.f, std::stof(p2Y) });
+                            if (!ballX.empty() && !ballY.empty()) ball.setPosition({ std::stof(ballX), std::stof(ballY) });
 
-                scoreText.setString(s1 + " - " + s2);
+                            scoreText.setString(s1 + " - " + s2);
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "Erreur de conversion : " << e.what() << std::endl;
+                        }
+                    }
+                }
             }
         }
 

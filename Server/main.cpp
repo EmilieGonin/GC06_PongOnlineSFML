@@ -131,6 +131,18 @@ int main() {
             std::to_string(score1) + "," +
             std::to_string(score2);
 
+        if (score1 == 10 || score2 == 10) {
+            std::string winMessage = (score1 == 10) ? "win1" : "win2";
+            if (player1Port != 0) {
+                sendto(serverSocket, winMessage.c_str(), winMessage.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+            }
+            if (player2Port != 0) {
+                sendto(serverSocket, winMessage.c_str(), winMessage.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
+            }
+            break; // Arrête la boucle du serveur
+        }
+
+
         std::cout << "Envoi aux clients : " << updateMessage << std::endl;
 
         if (player1Port != 0) {
