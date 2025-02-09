@@ -3,13 +3,15 @@
 #include <iostream>
 #include <fstream>
 
-WaitingScene::WaitingScene(const std::string& message) : waitingMessage(message) {}
+WaitingScene::WaitingScene(const std::string& message) : waitingMessage(message), text(font) {}
 
 WaitingScene::~WaitingScene() {}
 
 void WaitingScene::Init()
 {
-    // TODO -> Load font
+    if (!font.openFromFile("Roboto.ttf")) {
+        std::cerr << "Erreur chargement police\n";
+    }
 
     text.setFont(font);
     text.setString(waitingMessage);

@@ -1,20 +1,18 @@
 #include "MenuScene.h"
 #include <iostream>
-#include <SFML/Graphics.hpp>
 
 MenuScene::MenuScene()
     : username("Joueur"), serverIP("127.0.0.1"), editUser(false), editIP(false),
-    font()
+    titleText(font), usernameLabel(font), serverIPLabel(font), createGameText(font), joinGameText(font)
 {
 }
 
-MenuScene::~MenuScene()
-{
-}
+MenuScene::~MenuScene() { }
 
-void MenuScene::Init() {
-    if (!font.loadFromFile("path_to_font.ttf")) {
-        std::cerr << "Erreur de chargement de la police!" << std::endl;
+void MenuScene::Init()
+{
+    if (!font.openFromFile("Roboto.ttf")) {
+        std::cerr << "Erreur chargement police\n";
     }
 
     titleText.setFont(font);
@@ -67,16 +65,16 @@ void MenuScene::Init() {
 void MenuScene::Update(float deltaTime) {
     SceneManager& sceneManager = SceneManager::GetInstance();
 
-    if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+    if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) {
         sf::Vector2i mousePos = sf::Mouse::getPosition();
 
-        if (createGameButton.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) {
+        if (createGameButton.getGlobalBounds().contains(sf::Vector2f(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))) {
             sceneManager.SetUsername(username);
             sceneManager.SetServerIP(serverIP);
             sceneManager.SetPlayerID(1);
         }
 
-        if (joinGameButton.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) {
+        if (joinGameButton.getGlobalBounds().contains(sf::Vector2f(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))) {
             sceneManager.SetUsername(username);
             sceneManager.SetServerIP(serverIP);
             sceneManager.SetPlayerID(2);
@@ -104,35 +102,38 @@ void MenuScene::Draw(sf::RenderTarget& target) {
 void MenuScene::Unload() {}
 
 void MenuScene::HandleInput(sf::Event event) {
-    if (event.type == sf::Event::TextEntered) {
+    if (const auto* textEntered = event.getIf<sf::Event::TextEntered>())
+    {
         if (editUser) {
-            if (event.text.unicode == '\b' && !username.empty()) {
+            if (textEntered->unicode == '\b' && !username.empty()) {
                 username.pop_back();
             }
-            else if (event.text.unicode >= 32 && event.text.unicode <= 126 && username.size() < 19) {
-                username += static_cast<char>(event.text.unicode);
+            else if (textEntered->unicode >= 32 && textEntered->unicode <= 126 && username.size() < 19) {
+                username += static_cast<char>(textEntered->unicode);
             }
         }
 
         if (editIP) {
-            if (event.text.unicode == '\b' && !serverIP.empty()) {
+            if (textEntered->unicode == '\b' && !serverIP.empty()) {
                 serverIP.pop_back();
             }
-            else if ((isdigit(event.text.unicode) || event.text.unicode == '.') && serverIP.size() < 19) {
-                serverIP += static_cast<char>(event.text.unicode);
+            else if ((isdigit(textEntered->unicode) || textEntered->unicode == '.') && serverIP.size() < 19) {
+                serverIP += static_cast<char>(textEntered->unicode);
             }
         }
     }
 
-    if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
+    if (const auto* mouseButton = event.getIf<sf::Event::MouseButtonPressed>())
+    {
+        if (mouseButton->button != sf::Mouse::Button::Left) return;
         sf::Vector2i mousePos = sf::Mouse::getPosition();
 
-        if (usernameBox.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) {
+        if (usernameBox.getGlobalBounds().contains(sf::Vector2f(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))) {
             editUser = true;
             editIP = false;
         }
 
-        if (serverIPBox.getGlobalBounds().contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y))) {
+        if (serverIPBox.getGlobalBounds().contains(sf::Vector2f(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)))) {
             editIP = true;
             editUser = false;
         }
