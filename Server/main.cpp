@@ -3,12 +3,15 @@
 #include <iostream>
 #include <unordered_map>
 #include <string>
-#include <windows.h>  // Pour Sleep()
+#include <windows.h>  
 
 #pragma comment(lib, "ws2_32.lib")
 
 #define SERVER_PORT 54000
 #define BUFFER_SIZE 1024
+
+std::string player1Input = "";
+std::string player2Input = "";
 
 int main() {
     WSADATA wsaData;
@@ -20,10 +23,12 @@ int main() {
 
     std::cout << "Serveur en attente de joueurs..." << std::endl;
 
-    std::unordered_map<std::string, sockaddr_in> clients;
+    sockaddr_in player1Addr, player2Addr;
+    int player1Port = 0, player2Port = 0;
+    bool gameStarted = false;
 
     while (true) {
-        Sleep(10);  // Réduit l'utilisation CPU
+        Sleep(10);
 
         char buffer[BUFFER_SIZE];
         sockaddr_in clientAddr;
@@ -32,31 +37,45 @@ int main() {
 
         if (bytesReceived > 0) {
             buffer[bytesReceived] = '\0';
+            std::string message(buffer);
+            int senderPort = ntohs(clientAddr.sin_port);
 
-            char clientIP[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
-            std::string clientKey = std::string(clientIP) + ":" + std::to_string(ntohs(clientAddr.sin_port));
+            std::cout << "Message reçu du client (" << senderPort << ") : " << message << std::endl;
 
-            std::cout << "Message reçu : " << buffer << " de " << clientKey << std::endl;
-
-            // Enregistrer le client s'il n'est pas encore dans la liste
-            if (clients.find(clientKey) == clients.end()) {
-                clients[clientKey] = clientAddr;
-                std::cout << "Nouveau joueur connecté : " << clientKey << std::endl;
+            if (message == "connect") {
+                if (!gameStarted) {
+                    player1Addr = clientAddr;
+                    player1Port = senderPort;
+                    gameStarted = true;
+                    sendto(serverSocket, "J1", 2, 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+                    std::cout << "Player 1 connecté." << std::endl;
+                }
+                else if (player2Port == 0) {
+                    player2Addr = clientAddr;
+                    player2Port = senderPort;
+                    sendto(serverSocket, "J2", 2, 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
+                    std::cout << "Player 2 connecté." << std::endl;
+                }
+                else {
+                    sendto(serverSocket, "full", 4, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
+                }
             }
+            else {
+                if (senderPort == player1Port) {
+                    player1Input = message;
+                }
+                else if (senderPort == player2Port) {
+                    player2Input = message;
+                }
 
-            // Vérifier si l'entrée est valide (Z, S, UP, DOWN)
-            if (strcmp(buffer, "Z") == 0 || strcmp(buffer, "S") == 0 ||
-                strcmp(buffer, "UP") == 0 || strcmp(buffer, "DOWN") == 0) {
+                std::string combinedInputs = player1Input + "," + player2Input;
+                std::cout << "Envoi aux clients : " << combinedInputs << std::endl;
 
-                std::cout << "Transmet l'entrée '" << buffer << "' aux autres joueurs..." << std::endl;
-
-                // Transmettre à tous les clients sauf l'expéditeur
-                for (const auto& client : clients) {
-                    if (client.first != clientKey) { // Ne pas envoyer à l'expéditeur
-                        sendto(serverSocket, buffer, bytesReceived, 0, (sockaddr*)&client.second, sizeof(client.second));
-                        std::cout << "Envoyé à : " << client.first << std::endl;
-                    }
+                if (player1Port != 0) {
+                    sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+                }
+                if (player2Port != 0) {
+                    sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
                 }
             }
         }
