@@ -4,11 +4,11 @@ int main()
 {
     sf::RenderWindow window(sf::VideoMode({ 800, 600 }), "SFML window");
 
-    const sf::Texture texture("cute_image.jpg");
+    const sf::Texture texture("vulpix.png");
     sf::Sprite sprite(texture);
 
-    const sf::Font font("arial.ttf");
-    sf::Text text(font, "Hello SFML", 50);
+    //const sf::Font font("arial.ttf");
+    //sf::Text text(font, "Hello SFML", 50);
 
     while (window.isOpen())
     {
@@ -20,7 +20,7 @@ int main()
 
         window.clear();
         window.draw(sprite);
-        window.draw(text);
+        //window.draw(text);
         window.display();
     }
 }
