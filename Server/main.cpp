@@ -10,6 +10,8 @@
 
 std::string player1Inputs = "";
 std::string player2Inputs = "";
+bool player1Updated = false;
+bool player2Updated = false;
 
 int main() {
     WSADATA wsaData;
@@ -61,14 +63,31 @@ int main() {
             else {
                 if (senderPort == player1Port) {
                     player1Inputs = message;
+                    player1Updated = true;
                 }
                 else if (senderPort == player2Port) {
                     player2Inputs = message;
+                    player2Updated = true;
                 }
 
-                Sleep(5);  // Attente pour regrouper les touches
+                std::string combinedInputs = "";
 
-                std::string combinedInputs = player1Inputs + "," + player2Inputs;
+                // Si les deux joueurs envoient un input au même moment, on les envoie ensemble
+                if (player1Updated && player2Updated) {
+                    combinedInputs = player1Inputs + "," + player2Inputs;
+                    player1Updated = false;
+                    player2Updated = false;
+                }
+                // Si seul Player 1 a envoyé un input
+                else if (player1Updated) {
+                    combinedInputs = player1Inputs + ",";
+                    player1Updated = false;
+                }
+                // Si seul Player 2 a envoyé un input
+                else if (player2Updated) {
+                    combinedInputs = "," + player2Inputs;
+                    player2Updated = false;
+                }
 
                 if (!combinedInputs.empty() && combinedInputs != ",") {
                     std::cout << "Envoi aux clients : " << combinedInputs << std::endl;

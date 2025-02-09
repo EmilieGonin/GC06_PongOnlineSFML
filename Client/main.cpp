@@ -98,7 +98,6 @@ int main() {
                     if (c == 'P') player2.move(sf::Vector2f(0.f, -5.f));
                     if (c == 'M') player2.move(sf::Vector2f(0.f, 5.f));
                 }
-
             }
         }
 
