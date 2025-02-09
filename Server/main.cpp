@@ -15,7 +15,7 @@ std::string player1Inputs = "";
 std::string player2Inputs = "";
 
 float ballX = 400.f, ballY = 300.f;
-float ballSpeedX = 5.f, ballSpeedY = 5.f;
+float ballSpeedX = 3.f, ballSpeedY = 3.f;
 
 float player1Y = 250.f;
 float player2Y = 250.f;
@@ -51,15 +51,15 @@ void BallLoop() {
             score2++;
             ballX = 400;
             ballY = 300;
-            ballSpeedX = -5.f;
-            ballSpeedY = (rand() % 2 == 0) ? 5.f : -5.f;
+            ballSpeedX = -3.f;
+            ballSpeedY = (rand() % 2 == 0) ? 3.f : -3.f;
         }
         else if (ballX > 800) {
             score1++;
             ballX = 400;
             ballY = 300;
-            ballSpeedX = 5.f;
-            ballSpeedY = (rand() % 2 == 0) ? 5.f : -5.f;
+            ballSpeedX = 3.f;
+            ballSpeedY = (rand() % 2 == 0) ? 3.f : -3.f;
         }
 
         if (score1 == 10 || score2 == 10) {
