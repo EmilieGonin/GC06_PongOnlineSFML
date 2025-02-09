@@ -20,6 +20,9 @@ float player2Y = 250.f;
 const float playerSpeed = 10.f;
 const float windowHeight = 600.f;
 
+int score1 = 0;
+int score2 = 0;
+
 int main() {
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -35,13 +38,12 @@ int main() {
     bool gameStarted = false;
 
     while (true) {
-        Sleep(10); // Simule une fréquence d'update (100 FPS)
+        Sleep(10);
 
-        // UTILISATION DE `select()` POUR NE PAS BLOQUER `recvfrom()`
         fd_set readSet;
         FD_ZERO(&readSet);
         FD_SET(serverSocket, &readSet);
-        struct timeval timeout = { 0, 10000 }; // 10ms timeout
+        struct timeval timeout = { 0, 10000 };
 
         int activity = select(serverSocket + 1, &readSet, NULL, NULL, &timeout);
         if (activity > 0 && FD_ISSET(serverSocket, &readSet)) {
@@ -86,22 +88,18 @@ int main() {
             }
         }
 
-        // MISE À JOUR DES POSITIONS DES JOUEURS
         if (player1Inputs == "Z" && player1Y > 0) player1Y -= playerSpeed;
         if (player1Inputs == "S" && player1Y < windowHeight - 100) player1Y += playerSpeed;
         if (player2Inputs == "P" && player2Y > 0) player2Y -= playerSpeed;
         if (player2Inputs == "M" && player2Y < windowHeight - 100) player2Y += playerSpeed;
 
-        // MISE À JOUR DE LA BALLE (TOUJOURS)
         ballX += ballSpeedX;
         ballY += ballSpeedY;
 
-        // Rebond sur le haut et le bas
         if (ballY <= 0 || ballY >= windowHeight - 10) {
             ballSpeedY *= -1;
         }
 
-        // Vérification des collisions avec les joueurs
         if (ballX <= 60 && ballY >= player1Y && ballY <= player1Y + 100) {
             ballSpeedX *= -1;
             ballX = 60;
@@ -111,18 +109,39 @@ int main() {
             ballX = 730;
         }
 
-        // Si la balle sort, on la remet au centre
-        if (ballX < 0 || ballX > 800) {
+        if (ballX < 0) {
+            score2++;
             ballX = 400;
             ballY = 300;
-            ballSpeedX *= -1;
+            ballSpeedX = -5.f;
+            ballSpeedY = (rand() % 2 == 0) ? 5.f : -5.f;
+        }
+        else if (ballX > 800) {
+            score1++;
+            ballX = 400;
+            ballY = 300;
+            ballSpeedX = 5.f;
+            ballSpeedY = (rand() % 2 == 0) ? 5.f : -5.f;
         }
 
-        // ENVOI DES POSITIONS (TOUJOURS ENVOYÉ)
         std::string updateMessage = std::to_string(player1Y) + "," +
             std::to_string(player2Y) + "," +
             std::to_string(ballX) + "," +
-            std::to_string(ballY);
+            std::to_string(ballY) + "," +
+            std::to_string(score1) + "," +
+            std::to_string(score2);
+
+        if (score1 == 10 || score2 == 10) {
+            std::string winMessage = (score1 == 10) ? "win1" : "win2";
+            if (player1Port != 0) {
+                sendto(serverSocket, winMessage.c_str(), winMessage.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+            }
+            if (player2Port != 0) {
+                sendto(serverSocket, winMessage.c_str(), winMessage.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
+            }
+            break; // Arrête la boucle du serveur
+        }
+
 
         std::cout << "Envoi aux clients : " << updateMessage << std::endl;
 

@@ -5,8 +5,7 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <optional>
-#include "Ball.h"
-#include "Paddle.h"
+#include <sstream>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -15,11 +14,31 @@
 #define BUFFER_SIZE 1024
 
 int main() {
-    sf::RenderWindow window(sf::VideoMode({ 800, 600 }), "Pong Client");
+    sf::RenderWindow window(sf::VideoMode({ 800, 600 }), "Client UDP - Pong");
 
-    Paddle player1(50.f, 250.f);
-    Paddle player2(740.f, 250.f);
-    Ball ball(400.f, 300.f);
+    sf::RectangleShape paddle1({ 10.f, 100.f });
+    paddle1.setFillColor(sf::Color(0, 255, 0));
+    paddle1.setPosition({ 50.f, 250.f });
+
+    sf::RectangleShape paddle2({ 10.f, 100.f });
+    paddle2.setFillColor(sf::Color(255, 0, 0));
+    paddle2.setPosition({ 740.f, 250.f });
+
+    sf::CircleShape ball(10.f);
+    ball.setFillColor(sf::Color(255, 255, 255));
+    ball.setPosition({ 400.f, 300.f });
+
+    sf::Font font;
+    if (!font.openFromFile("Roboto.ttf")) {
+        std::cerr << "Erreur chargement police\n";
+        return -1;
+    }
+
+    sf::Text scoreText(font);
+    scoreText.setString("0 - 0");
+    scoreText.setCharacterSize(30);
+    scoreText.setFillColor(sf::Color(255, 255, 255));
+    scoreText.setPosition({ 350.f, 10.f });
 
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -37,11 +56,11 @@ int main() {
     role = role.substr(0, 2);
 
     if (role == "full") {
-        std::cout << "Serveur plein. Fermeture du client." << std::endl;
         return 0;
     }
 
     bool isPlayer1 = (role == "J1");
+    bool gameOver = false;
 
     while (window.isOpen()) {
         while (std::optional<sf::Event> event = window.pollEvent()) {
@@ -50,50 +69,79 @@ int main() {
             }
         }
 
-        std::string input = "0";
-        if (isPlayer1) {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
-        }
-        else {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input = "P";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input = "M";
-        }
+        if (!gameOver) {
+            std::string input;
+            if (isPlayer1) {
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
+            }
+            else {
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input = "P";
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input = "M";
+            }
 
-        if (input != "0") {
-            sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
-        }
+            if (!input.empty()) {
+                sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+            }
 
-        fd_set readSet;
-        FD_ZERO(&readSet);
-        FD_SET(clientSocket, &readSet);
+            fd_set readSet;
+            FD_ZERO(&readSet);
+            FD_SET(clientSocket, &readSet);
 
-        struct timeval timeout;
-        timeout.tv_sec = 0;
-        timeout.tv_usec = 50000;
+            struct timeval timeout;
+            timeout.tv_sec = 0;
+            timeout.tv_usec = 50000;
 
-        int activity = select(clientSocket + 1, &readSet, NULL, NULL, &timeout);
-        if (activity > 0 && FD_ISSET(clientSocket, &readSet)) {
-            char buffer[BUFFER_SIZE];
-            int bytesReceived = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, NULL, NULL);
+            int activity = select(clientSocket + 1, &readSet, NULL, NULL, &timeout);
+            if (activity > 0 && FD_ISSET(clientSocket, &readSet)) {
+                char buffer[BUFFER_SIZE];
+                int bytesReceived = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, NULL, NULL);
 
-            if (bytesReceived > 0) {
-                buffer[bytesReceived] = '\0';
-                std::string data(buffer);
+                if (bytesReceived > 0) {
+                    buffer[bytesReceived] = '\0';
+                    std::string data(buffer);
 
-                float p1Y, p2Y, ballX, ballY;
-                sscanf_s(data.c_str(), "%f,%f,%f,%f", &p1Y, &p2Y, &ballX, &ballY);
+                    if (data == "win1" || data == "win2") {
+                        if ((data == "win1" && isPlayer1) || (data == "win2" && !isPlayer1)) {
+                            std::cout << "Vous avez gagné !" << std::endl;
+                            scoreText.setString("GAGNÉ !");
+                        }
+                        else {
+                            std::cout << "Vous avez perdu..." << std::endl;
+                            scoreText.setString("PERDU !");
+                        }
+                        gameOver = true;
+                    }
+                    else {
+                        std::stringstream ss(data);
+                        std::string p1Y, p2Y, ballX, ballY, s1, s2;
+                        std::getline(ss, p1Y, ',');
+                        std::getline(ss, p2Y, ',');
+                        std::getline(ss, ballX, ',');
+                        std::getline(ss, ballY, ',');
+                        std::getline(ss, s1, ',');
+                        std::getline(ss, s2, ',');
 
-                player1.shape.setPosition({ player1.shape.getPosition().x, p1Y });
-                player2.shape.setPosition({ player2.shape.getPosition().x, p2Y });
-                ball.shape.setPosition({ ballX, ballY });
+                        try {
+                            if (!p1Y.empty()) paddle1.setPosition({ 50.f, std::stof(p1Y) });
+                            if (!p2Y.empty()) paddle2.setPosition({ 740.f, std::stof(p2Y) });
+                            if (!ballX.empty() && !ballY.empty()) ball.setPosition({ std::stof(ballX), std::stof(ballY) });
+
+                            scoreText.setString(s1 + " - " + s2);
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "Erreur de conversion : " << e.what() << std::endl;
+                        }
+                    }
+                }
             }
         }
 
         window.clear();
-        window.draw(player1.shape);
-        window.draw(player2.shape);
-        window.draw(ball.shape);
+        window.draw(paddle1);
+        window.draw(paddle2);
+        window.draw(ball);
+        window.draw(scoreText);
         window.display();
     }
 
