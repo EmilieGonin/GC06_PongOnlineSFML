@@ -52,17 +52,18 @@ int main() {
             }
         }
 
-        std::string input;
+        std::string input = "";
         if (isPlayer1) {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input += "Z";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input += "S";
         }
         else {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input = "P";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input = "M";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::P)) input += "P";
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::M)) input += "M";
         }
 
         if (!input.empty()) {
+            std::cout << "Envoi au serveur : " << input << std::endl;
             sendto(clientSocket, input.c_str(), input.size(), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
         }
 
@@ -82,16 +83,22 @@ int main() {
             if (bytesReceived > 0) {
                 buffer[bytesReceived] = '\0';
                 std::string data(buffer);
+                std::cout << "Commande reçue du serveur : " << data << std::endl;
 
                 std::stringstream ss(data);
                 std::string p1Input, p2Input;
                 std::getline(ss, p1Input, ',');
                 std::getline(ss, p2Input, ',');
 
-                if (p1Input == "Z") player1.move(sf::Vector2f(0.f, -5.f));
-                if (p1Input == "S") player1.move(sf::Vector2f(0.f, 5.f));
-                if (p2Input == "P") player2.move(sf::Vector2f(0.f, -5.f));
-                if (p2Input == "M") player2.move(sf::Vector2f(0.f, 5.f));
+                for (char c : p1Input) {
+                    if (c == 'Z') player1.move(sf::Vector2f(0.f, -5.f));
+                    if (c == 'S') player1.move(sf::Vector2f(0.f, 5.f));
+                }
+                for (char c : p2Input) {
+                    if (c == 'P') player2.move(sf::Vector2f(0.f, -5.f));
+                    if (c == 'M') player2.move(sf::Vector2f(0.f, 5.f));
+                }
+
             }
         }
 

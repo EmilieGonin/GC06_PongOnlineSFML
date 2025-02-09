@@ -1,8 +1,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
-#include <unordered_map>
-#include <string>
 #include <windows.h>  
 
 #pragma comment(lib, "ws2_32.lib")
@@ -10,8 +8,8 @@
 #define SERVER_PORT 54000
 #define BUFFER_SIZE 1024
 
-std::string player1Input = "";
-std::string player2Input = "";
+std::string player1Inputs = "";
+std::string player2Inputs = "";
 
 int main() {
     WSADATA wsaData;
@@ -62,21 +60,28 @@ int main() {
             }
             else {
                 if (senderPort == player1Port) {
-                    player1Input = message;
+                    player1Inputs = message;
                 }
                 else if (senderPort == player2Port) {
-                    player2Input = message;
+                    player2Inputs = message;
                 }
 
-                std::string combinedInputs = player1Input + "," + player2Input;
-                std::cout << "Envoi aux clients : " << combinedInputs << std::endl;
+                Sleep(5);  // Attente pour regrouper les touches
 
-                if (player1Port != 0) {
-                    sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+                std::string combinedInputs = player1Inputs + "," + player2Inputs;
+
+                if (!combinedInputs.empty() && combinedInputs != ",") {
+                    std::cout << "Envoi aux clients : " << combinedInputs << std::endl;
+                    if (player1Port != 0) {
+                        sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+                    }
+                    if (player2Port != 0) {
+                        sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
+                    }
                 }
-                if (player2Port != 0) {
-                    sendto(serverSocket, combinedInputs.c_str(), combinedInputs.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
-                }
+
+                player1Inputs = "";
+                player2Inputs = "";
             }
         }
     }
