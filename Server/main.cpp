@@ -3,6 +3,8 @@
 #include <iostream>
 #include <windows.h>
 #include <string>
+#include <thread>
+#include <chrono>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -13,7 +15,7 @@ std::string player1Inputs = "";
 std::string player2Inputs = "";
 
 float ballX = 400.f, ballY = 300.f;
-float ballSpeedX = 5.f, ballSpeedY = 5.f;
+float ballSpeedX = 3.f, ballSpeedY = 3.f;
 
 float player1Y = 250.f;
 float player2Y = 250.f;
@@ -22,6 +24,49 @@ const float windowHeight = 600.f;
 
 int score1 = 0;
 int score2 = 0;
+
+bool gameRunning = true;
+
+void BallLoop() {
+    while (gameRunning) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        ballX += ballSpeedX;
+        ballY += ballSpeedY;
+
+        if (ballY <= 0 || ballY >= windowHeight - 10) {
+            ballSpeedY *= -1;
+        }
+
+        if (ballX <= 60 && ballY >= player1Y && ballY <= player1Y + 100) {
+            if (ballSpeedX < 0) ballSpeedX *= -1;
+            ballX = 60;
+        }
+        if (ballX >= 730 && ballY >= player2Y && ballY <= player2Y + 100) {
+            if (ballSpeedX > 0) ballSpeedX *= -1;
+            ballX = 730;
+        }
+
+        if (ballX < 0) {
+            score2++;
+            ballX = 400;
+            ballY = 300;
+            ballSpeedX = -3.f;
+            ballSpeedY = (rand() % 2 == 0) ? 3.f : -3.f;
+        }
+        else if (ballX > 800) {
+            score1++;
+            ballX = 400;
+            ballY = 300;
+            ballSpeedX = 3.f;
+            ballSpeedY = (rand() % 2 == 0) ? 3.f : -3.f;
+        }
+
+        if (score1 == 10 || score2 == 10) {
+            gameRunning = false;
+        }
+    }
+}
 
 int main() {
     WSADATA wsaData;
@@ -37,7 +82,9 @@ int main() {
     int player1Port = 0, player2Port = 0;
     bool gameStarted = false;
 
-    while (true) {
+    std::thread ballThread(BallLoop);
+
+    while (gameRunning) {
         Sleep(10);
 
         fd_set readSet;
@@ -57,21 +104,17 @@ int main() {
                 std::string message(buffer);
                 int senderPort = ntohs(clientAddr.sin_port);
 
-                std::cout << "Message reçu du client (" << senderPort << ") : " << message << std::endl;
-
                 if (message == "connect") {
                     if (!gameStarted) {
                         player1Addr = clientAddr;
                         player1Port = senderPort;
                         gameStarted = true;
                         sendto(serverSocket, "J1", 2, 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
-                        std::cout << "Player 1 connecté." << std::endl;
                     }
                     else if (player2Port == 0) {
                         player2Addr = clientAddr;
                         player2Port = senderPort;
                         sendto(serverSocket, "J2", 2, 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
-                        std::cout << "Player 2 connecté." << std::endl;
                     }
                     else {
                         sendto(serverSocket, "full", 4, 0, (sockaddr*)&clientAddr, sizeof(clientAddr));
@@ -93,37 +136,6 @@ int main() {
         if (player2Inputs == "P" && player2Y > 0) player2Y -= playerSpeed;
         if (player2Inputs == "M" && player2Y < windowHeight - 100) player2Y += playerSpeed;
 
-        ballX += ballSpeedX;
-        ballY += ballSpeedY;
-
-        if (ballY <= 0 || ballY >= windowHeight - 10) {
-            ballSpeedY *= -1;
-        }
-
-        if (ballX <= 60 && ballY >= player1Y && ballY <= player1Y + 100) {
-            ballSpeedX *= -1;
-            ballX = 60;
-        }
-        if (ballX >= 730 && ballY >= player2Y && ballY <= player2Y + 100) {
-            ballSpeedX *= -1;
-            ballX = 730;
-        }
-
-        if (ballX < 0) {
-            score2++;
-            ballX = 400;
-            ballY = 300;
-            ballSpeedX = -5.f;
-            ballSpeedY = (rand() % 2 == 0) ? 5.f : -5.f;
-        }
-        else if (ballX > 800) {
-            score1++;
-            ballX = 400;
-            ballY = 300;
-            ballSpeedX = 5.f;
-            ballSpeedY = (rand() % 2 == 0) ? 5.f : -5.f;
-        }
-
         std::string updateMessage = std::to_string(player1Y) + "," +
             std::to_string(player2Y) + "," +
             std::to_string(ballX) + "," +
@@ -133,17 +145,20 @@ int main() {
 
         if (score1 == 10 || score2 == 10) {
             std::string winMessage = (score1 == 10) ? "win1" : "win2";
+
             if (player1Port != 0) {
                 sendto(serverSocket, winMessage.c_str(), winMessage.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
             }
             if (player2Port != 0) {
                 sendto(serverSocket, winMessage.c_str(), winMessage.size(), 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
             }
-            break; // Arrête la boucle du serveur
+
+            Sleep(3000);
+            sendto(serverSocket, "fin", 3, 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
+            sendto(serverSocket, "fin", 3, 0, (sockaddr*)&player2Addr, sizeof(player2Addr));
+
+            break;
         }
-
-
-        std::cout << "Envoi aux clients : " << updateMessage << std::endl;
 
         if (player1Port != 0) {
             sendto(serverSocket, updateMessage.c_str(), updateMessage.size(), 0, (sockaddr*)&player1Addr, sizeof(player1Addr));
@@ -156,6 +171,7 @@ int main() {
         player2Inputs = "";
     }
 
+    ballThread.join();
     closesocket(serverSocket);
     WSACleanup();
     return 0;
