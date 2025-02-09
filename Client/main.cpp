@@ -1,68 +1,62 @@
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
+#include <SFML/Network.hpp>
 #include <iostream>
-#include <string>
-
-#pragma comment(lib, "ws2_32.lib")
+#include <optional>
 
 #define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 54000
-#define BUFFER_SIZE 1024
-
-bool initWinsock() {
-    WSADATA wsaData;
-    return WSAStartup(MAKEWORD(2, 2), &wsaData) == 0;
-}
-
-SOCKET createUDPSocket() {
-    return socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-}
-
-void sendMessage(SOCKET clientSocket, sockaddr_in& serverAddr) {
-    std::string message;
-    char buffer[BUFFER_SIZE];
-    int serverAddrSize = sizeof(serverAddr);
-
-    while (true) {
-        std::cout << "Entrez un message à envoyer au serveur (ou 'exit' pour quitter) : ";
-        std::getline(std::cin, message);
-
-        if (message == "exit") break;
-
-        sendto(clientSocket, message.c_str(), message.size(), 0, (sockaddr*)&serverAddr, serverAddrSize);
-
-        int bytesReceived = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, (sockaddr*)&serverAddr, &serverAddrSize);
-        if (bytesReceived == SOCKET_ERROR) {
-            std::cerr << "Erreur recvfrom: " << WSAGetLastError() << std::endl;
-            continue;
-        }
-
-        buffer[bytesReceived] = '\0';
-        std::cout << "Réponse du serveur: " << buffer << std::endl;
-    }
-}
 
 int main() {
-    if (!initWinsock()) {
-        std::cerr << "Échec de l'initialisation de Winsock." << std::endl;
+    // --- Initialisation de SFML ---
+    sf::RenderWindow window(sf::VideoMode({ 800, 600 }), "Client UDP - SFML 3");
+
+    // Création du joueur (rectangle vert)
+    sf::RectangleShape player(sf::Vector2f(50.f, 50.f));
+    player.setFillColor(sf::Color::Green);
+    player.setPosition(sf::Vector2f(375.f, 275.f));
+
+    // --- Configuration de la connexion UDP ---
+    sf::UdpSocket socket;
+    socket.bind(sf::Socket::AnyPort);
+
+    // Vérification de l'adresse IP du serveur
+    std::optional<sf::IpAddress> resolvedIP = sf::IpAddress::resolve(SERVER_IP);
+    if (!resolvedIP) {
+        std::cerr << "Erreur : Impossible de résoudre l'adresse IP du serveur !" << std::endl;
         return 1;
     }
+    sf::IpAddress serverIP = *resolvedIP;  // Extraction de l'IP
+    unsigned short serverPort = SERVER_PORT;
 
-    SOCKET clientSocket = createUDPSocket();
-    if (clientSocket == INVALID_SOCKET) {
-        std::cerr << "Erreur de création de socket." << std::endl;
-        WSACleanup();
-        return 1;
+    // --- Boucle principale ---
+    while (window.isOpen()) {
+        // Gestion des événements
+        while (std::optional<sf::Event> event = window.pollEvent()) {
+            if (event->is<sf::Event::Closed>())
+                window.close();
+        }
+
+        // --- Gestion des déplacements ---
+        sf::Vector2f movement(0.f, 0.f);
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A))  movement.x -= 5.f;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D))  movement.x += 5.f;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W))  movement.y -= 5.f;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S))  movement.y += 5.f;
+
+        player.move(movement);
+
+        // --- Envoi de la position au serveur ---
+        std::string positionData = std::to_string((int)player.getPosition().x) + "," +
+            std::to_string((int)player.getPosition().y);
+        socket.send(positionData.c_str(), positionData.size(), serverIP, serverPort);
+
+        // --- Affichage ---
+        window.clear();
+        window.draw(player);
+        window.display();
     }
 
-    sockaddr_in serverAddr;
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(SERVER_PORT);
-    inet_pton(AF_INET, SERVER_IP, &serverAddr.sin_addr);
-
-    sendMessage(clientSocket, serverAddr);
-
-    closesocket(clientSocket);
-    WSACleanup();
     return 0;
 }
