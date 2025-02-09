@@ -1,59 +1,73 @@
-#include <SFML/Network.hpp>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <iostream>
 #include <unordered_map>
-#include <optional>
+#include <string>
 
-// Ajout du hash pour `sf::IpAddress`
-namespace std {
-    template<>
-    struct hash<sf::IpAddress> {
-        std::size_t operator()(const sf::IpAddress& ip) const {
-            return hash<std::string>()(ip.toString());
-        }
-    };
-}
+#pragma comment(lib, "ws2_32.lib")
 
 #define SERVER_PORT 54000
+#define BUFFER_SIZE 1024
 
 int main() {
-    sf::UdpSocket socket;
-    if (socket.bind(SERVER_PORT) != sf::Socket::Status::Done) {
-        std::cerr << "Erreur : Impossible de lier la socket au port " << SERVER_PORT << std::endl;
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "Erreur lors de l'initialisation de Winsock !" << std::endl;
+        return 1;
+    }
+
+    SOCKET serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (serverSocket == INVALID_SOCKET) {
+        std::cerr << "Erreur : Impossible de créer la socket !" << std::endl;
+        WSACleanup();
+        return 1;
+    }
+
+    sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(SERVER_PORT);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cerr << "Erreur : Impossible de lier la socket !" << std::endl;
+        closesocket(serverSocket);
+        WSACleanup();
         return 1;
     }
 
     std::cout << "Serveur en attente de messages..." << std::endl;
 
-    std::unordered_map<sf::IpAddress, unsigned short> clients;
+    std::unordered_map<std::string, sockaddr_in> clients;
 
     while (true) {
-        char buffer[1024];
-        std::size_t received;
-        std::optional<sf::IpAddress> senderIP;
-        unsigned short senderPort;
+        char buffer[BUFFER_SIZE];
+        sockaddr_in clientAddr;
+        int clientLen = sizeof(clientAddr);
+        int bytesReceived = recvfrom(serverSocket, buffer, BUFFER_SIZE, 0, (sockaddr*)&clientAddr, &clientLen);
 
-        if (socket.receive(buffer, sizeof(buffer), received, senderIP, senderPort) == sf::Socket::Status::Done) {
-            buffer[received] = '\0';
+        if (bytesReceived > 0) {
+            buffer[bytesReceived] = '\0';
             std::string data(buffer);
 
-            if (senderIP) { // Vérifier que l'adresse est valide
-                std::cout << "Reçu de " << *senderIP << " : " << data << std::endl;
+            char clientIP[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, INET_ADDRSTRLEN);
+            std::string clientKey = std::string(clientIP) + ":" + std::to_string(ntohs(clientAddr.sin_port));
 
-                // Enregistrer le client
-                if (clients.find(*senderIP) == clients.end()) {
-                    clients[*senderIP] = senderPort;
-                    std::cout << "Nouveau joueur connecté : " << *senderIP << ":" << senderPort << std::endl;
-                }
+            if (clients.find(clientKey) == clients.end()) {
+                clients[clientKey] = clientAddr;
+                std::cout << "Nouveau joueur connecté : " << clientIP << ":" << ntohs(clientAddr.sin_port) << std::endl;
+            }
 
-                // Diffuser la position aux autres joueurs
-                for (const auto& client : clients) {
-                    if (client.first != *senderIP) {
-                        socket.send(data.c_str(), data.size(), client.first, client.second);
-                    }
+            for (const auto& client : clients) {
+                if (client.second.sin_addr.s_addr != clientAddr.sin_addr.s_addr ||
+                    client.second.sin_port != clientAddr.sin_port) {
+                    sendto(serverSocket, data.c_str(), data.size(), 0, (sockaddr*)&client.second, sizeof(client.second));
                 }
             }
         }
     }
 
+    closesocket(serverSocket);
+    WSACleanup();
     return 0;
 }
