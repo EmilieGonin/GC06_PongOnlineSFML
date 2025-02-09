@@ -1,7 +1,10 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iostream>
+#include <optional>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -30,43 +33,44 @@ int main() {
     std::cout << "Connexion au serveur..." << std::endl;
     sendto(clientSocket, "connect", 7, 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
 
-    bool isPlayer1 = false, isGameStarted = false;
-
     while (window.isOpen()) {
         while (std::optional<sf::Event> event = window.pollEvent()) {
-            if (event->is<sf::Event::Closed>())
+            if (event->is<sf::Event::Closed>()) {
                 window.close();
+            }
         }
 
-        std::cout << "Attente d'un message du serveur..." << std::endl;
+        fd_set readSet;
+        FD_ZERO(&readSet);
+        FD_SET(clientSocket, &readSet);
 
-        // Réception des entrées du serveur
-        char buffer[BUFFER_SIZE];
-        sockaddr_in senderAddr;
-        int senderLen = sizeof(senderAddr);
-        int bytesReceived = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, (sockaddr*)&senderAddr, &senderLen);
+        struct timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 50000;
 
-        if (bytesReceived > 0) {
-            buffer[bytesReceived] = '\0';
-            std::cout << "Commande reçue du serveur : " << buffer << std::endl;
+        int activity = select(clientSocket + 1, &readSet, NULL, NULL, &timeout);
+        if (activity > 0 && FD_ISSET(clientSocket, &readSet)) {
+            sockaddr_in senderAddr;
+            int senderLen = sizeof(senderAddr);
+            char buffer[BUFFER_SIZE];
+            int bytesReceived = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, (sockaddr*)&senderAddr, &senderLen);
 
-            if (strcmp(buffer, "Z") == 0 || strcmp(buffer, "UP") == 0)
-                player.move(sf::Vector2f(0.f, -5.f));
+            if (bytesReceived > 0) {
+                buffer[bytesReceived] = '\0';
+                std::cout << "Commande reçue du serveur : " << buffer << std::endl;
 
-            if (strcmp(buffer, "S") == 0 || strcmp(buffer, "DOWN") == 0)
-                player.move(sf::Vector2f(0.f, 5.f));
+                if (strcmp(buffer, "Z") == 0) otherPlayer.move(sf::Vector2f(0.f, -5.f));
+                if (strcmp(buffer, "S") == 0) otherPlayer.move(sf::Vector2f(0.f, 5.f));
+                if (strcmp(buffer, "UP") == 0) otherPlayer.move(sf::Vector2f(0.f, -5.f));
+                if (strcmp(buffer, "DOWN") == 0) otherPlayer.move(sf::Vector2f(0.f, 5.f));
+            }
         }
 
-        // Gestion des entrées spécifiques à chaque joueur
         std::string input;
-        if (isPlayer1) {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
-        }
-        else {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)) input = "UP";
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down)) input = "DOWN";
-        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) input = "Z";
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) input = "S";
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up)) input = "UP";
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down)) input = "DOWN";
 
         if (!input.empty()) {
             std::cout << "Envoi au serveur : " << input << std::endl;
